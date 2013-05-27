@@ -14,20 +14,6 @@ using namespace std;
 //#include "UtilityFunctions.h"
 //#include "histoNameArray.C"
 
-//Create Canvas for Drawing the TOF Histograms
-TCanvas *canvas = new TCanvas("canvas");
-
-
-//Define Bin Property Values
-Double_t ptBinSize_TPC = .050;
-Double_t ptBinSize_TOF = .100;
-Double_t yBinSize = .2;
-
-//Run Time Options
-Bool_t saveFits = true;
-TString fitDir = "fits/";
-TString gifSpeed = "+50";
-
 void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 
 	Double_t ptBinSize;
@@ -45,9 +31,9 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 	//Create Objects needed for Peak Finding
 	TSpectrum *tempSpectrum;
 	if (TPC_TOF == 1)
-		tempSpectrum = new TSpectrum(3,.25);
+		tempSpectrum = new TSpectrum(3,1.25);
 	if (TPC_TOF == 0)
-		tempSpectrum = new TSpectrum(4,.25);
+		tempSpectrum = new TSpectrum(4,1.25);
 
 	//Define Variables needed for Peak Fitting
 	Int_t nFoundPeaks, nPeak;
@@ -57,6 +43,16 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 	Double_t protonWidth[40]; //This is used to fix the means of the antiprotons
 	Double_t kaonWidth[6]; //This is used to store the first six widths of the kaon (and antikaon) to fix the remainer of the widths
 
+	// **added: expected 1/beta mean **
+	Double_t betaExpected[6][N_beta];
+	Double_t dedxExpected[6][N_beta];
+
+	TFile *dedxFile = new TFile("../dEdx_points.root","READ");
+	TF1 *siPion = (TF1*) dedxFile->Get("siPion");
+	TF1 *siKaon = (TF1*) dedxFile->Get("siKaon");
+	TF1 *siProt = (TF1*) dedxFile->Get("siProton");
+	TF1 *siElec = (TF1*) dedxFile->Get("siElectron");
+
 	//Create Objects needed for Yield Extraction
 	TFitResultPtr fitResult;
 	Double_t mParticle;
@@ -64,41 +60,51 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 	Double_t invYield, invYieldError;
 	Double_t pt, yieldNorm;
 
+	Int_t fitStatus;
+
 	//Used to seed the current mean for kaons and protons in the TPC Spectra
 	Double_t prevAmp, prevMean, prevWidth;  
 
 	//Create the Fit Function
 	//TF1 *fitFunction = new TF1("studentT",studentT,-1,5,3);
 	TF1 *fitFunction;
-	TF1 *singleGaussian = new TF1("Gaussian","gaus(0)",-0.4,0.4);
-	TF1 *doubleGaussian = new TF1("DblGaussian","gaus(0)+gaus(3)",-0.4,.4);
+	TF1 *singleGaussian = new TF1("Gaussian","gaus(0)",0.3,5.0);
+	TF1 *doubleGaussian = new TF1("DblGaussian","gaus(0)+gaus(3)",0.3,5.0);
 
 	TF1 *drawPeak = new TF1("SglGaussian","gaus");
 
 
-	//Set the Starting Bin Number
-	Int_t startptBin, endptBin;
-	if (TPC_TOF == 1){
-		startptBin = 3;
-		endptBin = 29;
-	}
-	else if (TPC_TOF == 0){
-		startptBin = 3;
-		endptBin = 19;
-	}
-
 	//Set Starting Locations for Each particle for TPC
-	Double_t kaonStart = 1.75;
+//	Double_t kaonStart = 1.75;
 
+	Int_t startptBin, endptBin;
 
 	//Loop over the Particle Species
 	for (Int_t i=0; i<6; i++){
 	
-	//Kaons not working: width array out of range (j-4 is negative)
-	//For now, just do pions
-//	for(Int_t i=0;i<3;i++){
-
 		cout <<"Doing Particle Number: " <<i <<" Histogram: " <<endl;//<<histoNameArray[i][j]<<endl; 
+
+		//Set the Starting Bin Number
+		if(i<=3){ //pions and kaons
+			if (TPC_TOF == 1){
+				startptBin = 3;
+				endptBin = 29;
+			}
+			else if (TPC_TOF == 0){
+				startptBin = 2; //start with histogram3 for pions/kaons
+				endptBin = 19;
+			}
+		}
+		else if(i>=4) { //p's
+			if(TPC_TOF == 1){
+				startptBin = 5;
+				endptBin = 29;
+			}
+			else if (TPC_TOF == 0){
+				startptBin = 3;
+				endptBin = 19;
+			}
+		}
 
 		//In the majority of cases a single Gaussian will be used as the fit function
 		fitFunction = singleGaussian;
@@ -106,6 +112,9 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 
 		//Define the Spectra Graph
 		spectraGraph[TPC_TOF][CENTBIN][i] = new TGraphErrors();
+
+		//Reset fitStatus
+		fitStatus = 1; // TH1::Fit returns 0 if fit OK
 
 		for (Int_t j=startptBin; j<endptBin; j++){
 
@@ -124,10 +133,15 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 			}
 
 			//Set the X axis Range
-	//		if (TPC_TOF == 1)
-	//			htemp->GetXaxis()->SetRangeUser(-1.00,1.25);
-	//		else if (TPC_TOF ==0)
-	//			htemp->GetXaxis()->SetRangeUser(0,5.0);
+			if (TPC_TOF == 1) {
+				if(i<=1) htemp->GetXaxis()->SetRangeUser(0.8,1.5);
+				else if(i<=3) htemp->GetXaxis()->SetRangeUser(0.8,2.1);
+				else if(i>3)  htemp->GetXaxis()->SetRangeUser(0.8,3.0);
+			}
+			else if (TPC_TOF ==0) {
+				if(i<=1) htemp->GetXaxis()->SetRangeUser(0.4,3.0);
+				else if(i>1) htemp->GetXaxis()->SetRangeUser(0.4,4.0);
+			}
 
 			//Find the Peaks in the Histogram
 			if (TPC_TOF == 1)
@@ -158,10 +172,10 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 			}
 
 			//Print Peak Information
-			if (0){
-				cout <<"Peak 1: " <<peakLocation[0] <<endl
-					<<"Peak 2: " <<peakLocation[1] <<endl
-					<<"Peak 3: " <<peakLocation[2] <<endl;
+			if (1){
+				cout <<"Peak 1: " << peakLocation[0] <<endl
+					 <<"Peak 2: " << peakLocation[1] <<endl
+					 <<"Peak 3: " << peakLocation[2] <<endl;
 			}
 
 
@@ -174,6 +188,9 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 			else if (i == 4 || i == 5)
 				mParticle = mProton;
 
+			//Set the pt location - used in the TGraphs
+			Double_t pt = j*ptBinSize+.5*ptBinSize;
+			cout << "Doing pt bin "<< j <<", pt=" << pt << endl;
 
 			//Determine which peak should be fit and what the particle mass is
 			//Int_t nPeak;
@@ -183,6 +200,9 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 			//--------------------------------------------------------------------------------
 			if (TPC_TOF == 1){
 
+				//Set expected 1/beta
+				betaExpected[i][j]=TMath::Sqrt((mParticle*mParticle)/(pt*pt) + 1);
+			
 				//Determine Which Peak to Fit
 				//0 = pion  |  1 = kaon  |  2 = proton	
 				if (i == 0 || i == 1)
@@ -198,22 +218,39 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 				fitFunction->SetParLimits(1,peakLocation[nPeak]-.03,peakLocation[nPeak]+.03);
 				fitFunction->SetParLimits(2,0,.05);
 
+				cout << "Peak to be fit found at: " << peakLocation[nPeak] << endl;
+
 				//Check to make sure the found peak's mean is close to the previous peak's mean
 				if (j != startptBin){
 
 					//If the found peak's mean is too different from the previous mean the previous mean is used
 					//as the seed for the current fit, in addition set the current peak properties to previous peak's
-					if (fitFunction->GetParameter(1) > prevMean+.3 || fitFunction->GetParameter(1) < prevMean-.3){
+					if (fitFunction->GetParameter(1) > prevMean+.1 || fitFunction->GetParameter(1) < prevMean-.1){
 						fitFunction->SetParameter(1,prevMean);
 						//fitFunction->SetParameter(2,prevWidth);
 						peakAmplitude[nPeak] = prevAmp;
 						peakLocation[nPeak] = prevMean;	    
+				cout << "Peak found is too different from previous mean. Use prev at:" << peakLocation[nPeak] << endl;
 					}
+
+				}
+
+				//Check found peak against betaExpected
+				//if(peakLocation[nPeak])
+
+				if(fitFunction->GetParameter(1) > betaExpected[i][j]+0.08 || fitFunction->GetParameter(1) < betaExpected[i][j]-0.08) {
+					fitFunction->SetParameter(1, betaExpected[i][j]);
+					peakLocation[nPeak] = betaExpected[i][j];	    
+				
+					//Get estimate of amplitude: bin contents at expected beta
+					int expbin = htemp->GetXaxis()->FindBin(betaExpected[i][j]);
+					peakAmplitude[nPeak] = htemp->GetBinContent(expbin);
+				cout << "Peak found is too different from expected. Use expected at:" << peakLocation[nPeak] << endl;
 				}
 
 				//Finally, set the Limits on the parameter based on what peak was chosen
 				fitFunction->SetParLimits(1,peakLocation[nPeak]-.2,peakLocation[nPeak]+.2);
-				fitFunction->SetParLimits(2,0,.1);
+				fitFunction->SetParLimits(2,0,0.1);
 
 
 				//Set the Fit Range
@@ -226,6 +263,14 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 			//TPC  -  SETTING UP THE FIT
 			//--------------------------------------------------------------------------------
 			else if (TPC_TOF == 0){
+
+				//Set expected dedx
+				if (i == 0 || i == 1)
+					dedxExpected[i][j]=log(siPion->Eval(pt));
+				else if (i == 2 || i == 3)
+					dedxExpected[i][j]=log(siKaon->Eval(pt));
+				else if (i == 4 || i == 5)
+					dedxExpected[i][j]=log(siProt->Eval(pt));
 
 				//If the Peak Finder finds 3 or four peaks
 				if (nFoundPeaks == 3 || nFoundPeaks == 4){
@@ -252,49 +297,42 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 						if (i == 4 || i == 5)
 							nPeak = 2;	  
 					}
-
+				
 					//Set the seed Parameters for the Fit
 					fitFunction->SetParameters(peakAmplitude[nPeak],peakLocation[nPeak],.01);
 
 					//Check to make sure the found peak's mean is close to the previous peak's mean
-					if (j != startptBin){
+					/*DELETED*/
 
-						//If the found peak's mean is too different from the previous mean the previous mean is used
-						//as the seed for the current fit, in addition set the current peak properties to previous peak's
-						if (fitFunction->GetParameter(1) > prevMean+.3 || fitFunction->GetParameter(1) < prevMean-.3){
-							fitFunction->SetParameter(1,prevMean);
-							//fitFunction->SetParameter(2,prevWidth);
-							peakAmplitude[nPeak] = prevAmp;
-							peakLocation[nPeak] = prevMean;	    
-						}
-					}
+					//Check found peak against dedxExpected
+					if(fitFunction->GetParameter(1) > dedxExpected[i][j]+0.3 || fitFunction->GetParameter(1) < dedxExpected[i][j]-0.3) {
+						fitFunction->SetParameter(1, dedxExpected[i][j]);
+						peakLocation[nPeak] = dedxExpected[i][j];	    
 
-					else if (j == startptBin){
-
-						//Kaons
-						if (i == 2){
-							fitFunction->SetParameter(1,kaonStart);
-							peakLocation[nPeak] = kaonStart;
-						}	  
-						//Anti-Kaons
-						if (i == 3){
-							fitFunction->SetParameter(1,kaonStart+.1);
-							peakLocation[nPeak] = kaonStart+.1;
-						}	  
-
-
+						//Get estimate of amplitude: bin contents at expected beta
+						int expbin = htemp->GetXaxis()->FindBin(betaExpected[i][j]);
+						peakAmplitude[nPeak] = htemp->GetBinContent(expbin);
 					}
 
 					//Finally, set the Limits on the parameter based on what peak was chosen
 					fitFunction->SetParLimits(1,peakLocation[nPeak]-.2,peakLocation[nPeak]+.2);
 					fitFunction->SetParLimits(2,0,.1);
+
+					cout << "Fitting peak found at: " << peakLocation[nPeak] << endl;
 				}
 
 				//if there are less than three found peaks just use the previous peak as the seed
-				else if(nFoundPeaks < 3){
+				else if(nFoundPeaks < 3 && fitStatus==0){ //if there was a successful previous fit
 					fitFunction->SetParameters(prevAmp,prevMean,prevWidth);
 					fitFunction->SetParLimits(1,prevMean-.2,prevMean+.2);
 					fitFunction->SetParLimits(2,0,.1);
+				cout << "Using previous peak: Fitting peak found at: " << peakLocation[nPeak] << endl;
+				}
+				else if(nFoundPeaks < 3 && fitStatus!=0){ //if no previous fit, use Bichsel
+					fitFunction->SetParameters(10e5,dedxExpected[i][j],0.1*dedxExpected[i][j]);
+					fitFunction->SetParLimits(1,0.8*dedxExpected[i][j],1.1*dedxExpected[i][j]);
+					fitFunction->SetParLimits(2,0.05,.15);
+				cout << "Using Bichsel expected: " << dedxExpected[i][j] << "Fitting peak found at: " << peakLocation[nPeak] << endl;
 				}
 
 				//Set the Function Fit Range
@@ -303,46 +341,11 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 			}
 
 			//The Kaons and Proton will Benifit from limiting the range of the fit based on local minimums
-/*			if (i >= 2){
-
+/*			
 				//Look for a local Minimum in the range of the fit
-				Double_t lowerBound, upperBound, minValue, lookLower;
-				fitFunction->GetRange(lowerBound,upperBound);
-
-				if (TPC_TOF == 1)
-					lookLower = .05;
-				else if (TPC_TOF == 0)
-					lookLower = .3;
-
-				Int_t minBin = findLocalMinBin(htemp,fitFunction->GetParameter(1)-lookLower,fitFunction->GetParameter(1));
-
-				if (minBin >= 0){
-					minValue = htemp->GetBinCenter(minBin);
-
-					cout <<"Found Local Min Bin at: " <<minValue <<endl;
-
-					//If a local min is found limit the range of the fit accordingly
-					if (minValue >= fitFunction->GetParameter(1))
-						fitFunction->SetRange(lowerBound,minValue);
-					else if (minValue < fitFunction->GetParameter(1))
-						fitFunction->SetRange(minValue,upperBound);
-				}
-
-				Double_t temp1,temp2;
-				fitFunction->GetRange(temp1,temp2);
-				cout <<"Low Bound: " <<temp1 <<" High Bound: " <<temp2 <<endl;
-			}
 */
 			//Compute the Average kaon width if j>10 (to be used to fix the mean)
-			Double_t kaonWidthAvg = 0;
-			if (j >= 10 && (i == 2 || i ==3)){
-
-				for (Int_t p=0; p<6; p++)
-					kaonWidthAvg += kaonWidth[p];
-
-				kaonWidthAvg = kaonWidthAvg/6;
-
-			}
+/*			DELETED */
 
 			//The Kaons sometimes need to be fit with a double gaussian to prevent them
 			//merging into the pion peak
@@ -356,17 +359,14 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 						particle[i]+" Amp",particle[i]+" Mean",particle[i]+" Width");
 
 				//Set the Parameters of the First peak to those of the pion
-//				if (CENTBIN < 7)
-//					fitFunction->SetParameter(0,10e4);
-//				else 
-//					fitFunction->SetParameter(0,10e3);
+				/* DELETED */
 
 				fitFunction->SetParameter(1,.9);
 				fitFunction->SetParameter(2,.05);
 
 				//Set the Parameter Limits of the Pion Peak
 				fitFunction->SetParLimits(1,.8,1.);
-				fitFunction->SetParLimits(2,0,.1);
+				fitFunction->SetParLimits(2,0.01,.15);
 
 				//Set the Parameters of the Kaon Peak
 				fitFunction->SetParameter(3,prevAmp);
@@ -390,18 +390,7 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 			}
 
 			//The Anti-Protons can be fit using the means of the protons as a fixed parameter
-			if (TPC_TOF == 1 && i == 5){
-
-				fitFunction->FixParameter(1,protonMean[j]);
-
-				if (j >= 25)
-					fitFunction->FixParameter(2,protonWidth[j]);
-
-				if (CENTBIN == 0 && j>23)
-					fitFunction->SetParLimits(0,prevAmp-2,prevAmp+.5);
-
-			}
-
+			/* DELETED */
 
 			//Draw the Histogram
 			canvas->cd(1);
@@ -413,6 +402,7 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 
 			//Fit the Histogram
 			fitResult = htemp->Fit(fitFunction,"RS");
+			fitStatus = fitResult;
 
 			//Set the Current Mean to the prevMean
 			prevAmp  = fitFunction->GetParameter(0);
@@ -467,8 +457,6 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 			}
 
 
-			//Set the pt location - used in the TGraphs
-			Double_t pointX = j*ptBinSize+.5*ptBinSize;
 
 			//Look at a particular Histogram
 			//if (TPC_TOF == 0 && /*(CENTBIN == 0|| CENTBIN == 1)*/CENTBIN ==5 && (i == 3) && j ==4 )
@@ -523,8 +511,8 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 				WidthErr = fitFunction->GetParError(5);
 			}
 
-			rawYield = Amplitude*Width*sqrt(2*3.14159)/htemp->GetBinWidth(5);
-			rawYieldError = rawYield*sqrt(pow(AmplitudeErr/Amplitude,2)+pow(WidthErr/Width,2));
+			rawYield = Amplitude*Width*TMath::Sqrt(2*TMath::Pi())/htemp->GetBinWidth(5);
+			rawYieldError = rawYield*TMath::Sqrt(AmplitudeErr*AmplitudeErr/(Amplitude*Amplitude)+(WidthErr*WidthErr/(Width*Width)));
 
 			//Correction Factor to bring Sams Data to parity with Expected Results
 			Double_t CorrFact=1.;// = 100.;
@@ -536,11 +524,11 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 			invYield = rawYield*yieldNorm;
 			invYieldError = rawYieldError*yieldNorm;
 
-			cout <<"-------" <<rawYield <<"------------" <<endl;
-			cout <<"-------" <<invYield <<"------------" <<endl;
+			cout <<"-------rawYield=" <<rawYield <<"------------" <<endl;
+			cout <<"-------invYield=" <<invYield <<"------------" <<endl;
 
 			//Fill the Spectra Graph
-			spectraGraph[TPC_TOF][CENTBIN][i]->SetPoint(j-startptBin, pointX, invYield);
+			spectraGraph[TPC_TOF][CENTBIN][i]->SetPoint(j-startptBin, pt, invYield);
 			spectraGraph[TPC_TOF][CENTBIN][i]->SetPointError(j-startptBin,ptBinSize/2.,invYieldError);
 
 			//gSystem->Sleep(1000);
@@ -567,11 +555,11 @@ void spectra_Fitter_uu(){
 //	treeFile = new TFile("v4_ntuples/UU193_NTuples_cent1_completeish.root");
 	countNGoodEvents();
 
-	histoFile = new TFile("v4_ntuples/UU193_histos_cent1_completeish.root");
+	histoFile = new TFile("../v4_ntuples/UU193_histos_cent1_completeish.root");
 	
 	//Set the Y axis to Log Scale for the Histograms
 	canvas->SetLogy();
-	gStyle->SetOptStat(1111);
+	gStyle->SetOptStat(0);
 	gStyle->SetOptFit(112);
 
 	//Loop over the Centrality Bins and do the TPC Spectra
@@ -585,10 +573,15 @@ void spectra_Fitter_uu(){
 //	}
 
 
+	//Apply TOF efficiency scaling
+	efficiencyCorrection();
+
+	//Write out spectra data to text file
+	writeTextFiles();
 
 	//Draw the TOF Spectra
 	drawSpectra(1);
-
+				
 	//Draw the TPC Spectra
 	drawSpectra(0);
 

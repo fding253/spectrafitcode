@@ -31,6 +31,18 @@ Double_t mPion = .139570;
 Double_t mKaon = .493667;
 Double_t mProton = .938272;
 
+//Create Canvas for Drawing the TOF Histograms
+TCanvas *canvas = new TCanvas("canvas");
+
+//Define Bin Property Values
+Double_t ptBinSize_TPC = .050;
+Double_t ptBinSize_TOF = .100;
+Double_t yBinSize = .2;
+
+//Run Time Options
+Bool_t saveFits = true;
+TString fitDir = "../fits/";
+TString gifSpeed = "+50";
 
 //General Naming Properties
 TString collision = "UU";
@@ -48,6 +60,7 @@ TString particle[6] =
 	"kMinus",
 	"pPlus",
 	"pMinus"};
+TString strTPC_TOF;
 
 
 TString *histoNameArray[6];
@@ -150,8 +163,8 @@ void drawStudentT(){
 }
 
 //Make Legends
-TLegend *legend, *legend1;
-TLegendEntry *entry;
+//TLegend *legend, *legend1;
+//TLegendEntry *entry;
 /* void makeLegends(Int_t TPC_TOF){ */
 
 //Set the draw options of all the Spectra and Draws them
@@ -202,12 +215,12 @@ void drawSpectra(Int_t TPC_TOF){
 	spectraGraph[TPC_TOF][0][4]->SetTitle("p "+title[TPC_TOF]);
 	spectraGraph[TPC_TOF][0][5]->SetTitle("#bar{p} "+title[TPC_TOF]);
 
-	spectraGraph[TPC_TOF][0][0]->GetYaxis()->SetRangeUser(1e-1,1e3);
-	spectraGraph[TPC_TOF][0][1]->GetYaxis()->SetRangeUser(1e-1,1e3);
-	spectraGraph[TPC_TOF][0][2]->GetYaxis()->SetRangeUser(1e-3,1e1);
-	spectraGraph[TPC_TOF][0][3]->GetYaxis()->SetRangeUser(1e-3,1e1);
+	spectraGraph[TPC_TOF][0][0]->GetYaxis()->SetRangeUser(1e-2,1e3);
+	spectraGraph[TPC_TOF][0][1]->GetYaxis()->SetRangeUser(1e-2,1e3);
+	spectraGraph[TPC_TOF][0][2]->GetYaxis()->SetRangeUser(1e-3,1e2);
+	spectraGraph[TPC_TOF][0][3]->GetYaxis()->SetRangeUser(1e-3,1e2);
 	spectraGraph[TPC_TOF][0][4]->GetYaxis()->SetRangeUser(1e-3,1e1);
-	spectraGraph[TPC_TOF][0][5]->GetYaxis()->SetRangeUser(1e-3,1e0);
+	spectraGraph[TPC_TOF][0][5]->GetYaxis()->SetRangeUser(1e-3,1e1);
 
 
 	for (Int_t i=0; i<6; i++){
@@ -217,8 +230,13 @@ void drawSpectra(Int_t TPC_TOF){
 	}
 
 	//Create a Legend
-	legend = new TLegend(0.5,0.67,0.88,0.88);
+
+	//Make Legends
+	TLegend *legend = new TLegend(0.67,0.67,0.95,0.88);
+	TLegendEntry *entry;
+	legend->Clear();
 	legend->SetFillColor(kWhite);
+	
 
 	//Create the Legend Entries
 	entry = new TLegendEntry();
@@ -235,19 +253,19 @@ void drawSpectra(Int_t TPC_TOF){
 	gPad->SetLogy();
 	spectraGraph[TPC_TOF][0][0]->Draw("ALP");
 
-	spectraCanvas[TPC_TOF]->cd(2);
+	spectraCanvas[TPC_TOF]->cd(4);
 	gPad->SetLogy();
 	spectraGraph[TPC_TOF][0][1]->Draw("ALP");
 
-	spectraCanvas[TPC_TOF]->cd(3);
+	spectraCanvas[TPC_TOF]->cd(2);
 	gPad->SetLogy();
 	spectraGraph[TPC_TOF][0][2]->Draw("ALP");
 
-	spectraCanvas[TPC_TOF]->cd(4);
+	spectraCanvas[TPC_TOF]->cd(5);
 	gPad->SetLogy();
 	spectraGraph[TPC_TOF][0][3]->Draw("ALP");
 
-	spectraCanvas[TPC_TOF]->cd(5);
+	spectraCanvas[TPC_TOF]->cd(3);
 	gPad->SetLogy();
 	spectraGraph[TPC_TOF][0][4]->Draw("ALP");
 
@@ -278,6 +296,10 @@ void drawSpectra(Int_t TPC_TOF){
 	spectraCanvas[TPC_TOF]->cd(1);
 	legend->Draw();
 
+	if(TPC_TOF == 0) { strTPC_TOF = "_TPC"; }
+	else if(TPC_TOF ==1) { strTPC_TOF = "_TOF"; }
+	TString fileName = fitDir+collision+energy+strTPC_TOF+"spectra"+png;
+	spectraCanvas[TPC_TOF]->SaveAs(fileName);
 }
 
 
@@ -291,21 +313,23 @@ void drawTPCandTOF(){
 	combinedCanvas->SetLeftMargin(.15);
 	combinedCanvas->SetRightMargin(.15);
 
+	Int_t markerStyle;
+
 	//Create a Frame and Draw it on Each of the Pads
 	TH1F *frame[6];
-	frame[0] = combinedCanvas->cd(1)->DrawFrame(0,1e-2,1,1e3);
-	frame[1] = combinedCanvas->cd(2)->DrawFrame(0,1e-2,1,1e3);
-	frame[2] = combinedCanvas->cd(3)->DrawFrame(0,1e-3,1,5e1);
-	frame[3] = combinedCanvas->cd(4)->DrawFrame(0,1e-3,1,5e1);
-	frame[4] = combinedCanvas->cd(5)->DrawFrame(0,1e-3,1,1e2);
-	frame[5] = combinedCanvas->cd(6)->DrawFrame(0,.3e-3,1,5e0);
+	frame[0] = combinedCanvas->cd(1)->DrawFrame(0,1e-2,3,1e3);
+	frame[3] = combinedCanvas->cd(4)->DrawFrame(0,1e-2,3,1e3);
+	frame[1] = combinedCanvas->cd(2)->DrawFrame(0,1e-3,3,5e1);
+	frame[4] = combinedCanvas->cd(5)->DrawFrame(0,1e-3,3,5e1);
+	frame[2] = combinedCanvas->cd(3)->DrawFrame(0,1e-3,3,1e2);
+	frame[5] = combinedCanvas->cd(6)->DrawFrame(0,1e-3,3,1e2);
 
 	//Set the Titles of the Frames
 	frame[0]->SetTitle("#pi^{+} TPC and TOF Spectra");
-	frame[1]->SetTitle("#pi^{-} TPC and TOF Spectra");
-	frame[2]->SetTitle("K^{+} TPC and TOF Spectra");
-	frame[3]->SetTitle("K^{-} TPC and TOF Spectra");
-	frame[4]->SetTitle("p TPC and TOF Spectra");
+	frame[3]->SetTitle("#pi^{-} TPC and TOF Spectra");
+	frame[1]->SetTitle("K^{+} TPC and TOF Spectra");
+	frame[4]->SetTitle("K^{-} TPC and TOF Spectra");
+	frame[2]->SetTitle("p TPC and TOF Spectra");
 	frame[5]->SetTitle("#bar{p} TPC and TOF Spectra");
 
 	//Set X Axis Titles
@@ -325,165 +349,100 @@ void drawTPCandTOF(){
 	//Draw All the Others
 	for (Int_t i=0; i<2; i++){
 		for (Int_t j=0; j<1; j++){ //changed to only do one cent bin
-			for (Int_t k=0; k<6; k++){
+//			for (Int_t k=0; k<6; k++){
 
-				combinedCanvas->cd(k+1);
-				spectraGraph[i][j][k]->Draw("LP");
+				combinedCanvas->cd(1);
+				spectraGraph[i][j][0]->Draw("LP");
 
-			}
+				combinedCanvas->cd(4);
+				spectraGraph[i][j][1]->Draw("LP");
+				
+				combinedCanvas->cd(2);
+				spectraGraph[i][j][2]->Draw("LP");
+
+				combinedCanvas->cd(5);
+				spectraGraph[i][j][3]->Draw("LP");
+
+				combinedCanvas->cd(3);
+				spectraGraph[i][j][4]->Draw("LP");
+
+				combinedCanvas->cd(6);
+				spectraGraph[i][j][5]->Draw("LP");
+//			}
 		}  
 	}
 
 	//Draw Legends
+	TLegend *legend = new TLegend(0.67,0.67,0.95,0.88);
+	TLegendEntry *entry = new TLegendEntry();
+	legend->SetFillColor(kWhite);
+	legend->Clear();
+	
+	entry->SetLineColor(spectraGraph[0][0][1]->GetLineColor());
+	entry->SetMarkerStyle(spectraGraph[0][0][1]->GetMarkerStyle());
+	entry->SetMarkerColor(spectraGraph[0][0][1]->GetMarkerColor());
+	entry = legend->AddEntry("","TPC, 0 - 1% Central","lp");
+
+	entry->SetLineColor(spectraGraph[1][0][1]->GetLineColor());
+//	entry->SetMarkerStyle(spectraGraph[1][0][1]->GetMarkerStyle());
+	entry->SetMarkerStyle(24);
+	entry->SetMarkerColor(spectraGraph[1][0][1]->GetMarkerColor());
+	entry = legend->AddEntry("","TOF, 0 - 1% Central","lp");
+
 	combinedCanvas->cd(1);
 	legend->Draw();
 //	combinedCanvas->cd(2);
 //	legend1->Draw();
 
+	TString fileName = fitDir+collision+energy+"_spectracombined"+png;
+	combinedCanvas->SaveAs(fileName);
 }//End DrawTPCandTOF
 
 
 //Do Efficiency Corrections
 void efficiencyCorrection(){
 
-	//Load the Files
-//	TFile *file[6];
-//	file[0] = new TFile("EfficiencyDocs/efficiency_allCents/piPlus_effFit19.root");
-//	file[1] = new TFile("EfficiencyDocs/efficiency_allCents/piMinus_effFit19.root");
-//	file[2] = new TFile("EfficiencyDocs/efficiency_allCents/kPlus_effFit19.root");
-//	file[3] = new TFile("EfficiencyDocs/efficiency_allCents/kMinus_effFit19.root");
-//	file[4] = new TFile("EfficiencyDocs/efficiency_allCents/pPlus_effFit19.root");
-//	file[5] = new TFile("EfficiencyDocs/efficiency_allCents/pMinus_effFit19.root");
-
-	//Load the Efficiency Functions
-//	TF1 *effFunc[6];
-//	effFunc[0] = (TF1 *)file[0]->Get("pipfunct_rp");
-//	effFunc[1] = (TF1 *)file[1]->Get("pimfunct_rp");
-//	effFunc[2] = (TF1 *)file[2]->Get("kapfunct_rp");
-//	effFunc[3] = (TF1 *)file[3]->Get("kamfunct_rp");
-//	effFunc[4] = (TF1 *)file[4]->Get("prpfunct_rp");
-//	effFunc[5] = (TF1 *)file[5]->Get("prmfunct_rp");
-
-
-	//Loop Over the Centrality Bins
-/*	for (Int_t i=0; i<9; i++){
-
-		//First we need to efficiency correct the TPC Spectra
-
-		//Loop Over the Particle Species
-		for (Int_t j=0; j<6; j++){
-
-			//Temp Values to hold the pre-correct Point Values
-			Double_t yieldTPC, mTm0TPC, yieldTPCErr, mTm0TPCErr, effCorrection;
-			Int_t nPoints = spectraGraph[0][i][j]->GetN();
-
-			//Get the Current Values of the Points and their errors
-			//Then scale them according to the efficiency curve
-			for (Int_t k=0; k<nPoints; k++){
-				spectraGraph[0][i][j]->GetPoint(k,mTm0TPC,yieldTPC);
-				yieldTPCErr = spectraGraph[0][i][j]->GetErrorY(k);
-				mTm0TPCErr = spectraGraph[0][i][j]->GetErrorX(k); 
-
-				//Get the Efficiency Correction from the Eff Curve
-				effCorrection = effFunc[j]->Eval(mTm0TPC);
-
-				//Set the Scaled point Values
-				spectraGraph[0][i][j]->SetPoint(k,mTm0TPC,yieldTPC/effCorrection);
-				spectraGraph[0][i][j]->SetPointError(k,mTm0TPCErr,yieldTPCErr/effCorrection);
-
-			}
-
-		}
-	}
-*/	
-
 	//Set the TOF Scaled Value
-	/*************************************************************************
-	 **As a temporary solution we are scaling the TOF spectra by an additional
-	 **value of .6
-	 *************************************************************************/
-/*
+	
+	//Load TOF efficiency plot from UU193_QA.root file (my histogram TPC and TOF plots were cut off)
+	TFile *qafile = new TFile("../UU193_QA.root","READ");
 
-	for (Int_t i=0; i<9; i++){
+	TH1D *hTOFeff = (TH1D*) qafile->Get("TOFeff");
+
+//	for (Int_t i=0; i<9; i++){
 		for (Int_t j=0; j<6; j++){
-			Double_t yieldTPC, yieldTOF, mTm0TOF, mTm0TPC;
-			Double_t yieldTPCErr, yieldTOFErr, mTm0TOFErr, mTm0TPCErr;
-			Double_t effTPC, effTOF;
+			Double_t yieldTOF, ptTOF;
+			Double_t yieldTOFErr, ptTOFErr;
+			Double_t effTOF;
+			Int_t ptbin;
 
 			//Get the Number of Points in the TOF Graph
-			Int_t nPointsTOF = spectraGraph[1][i][j]->GetN();
+			Int_t nPointsTOF = spectraGraph[1][0][j]->GetN();
 
 			//Loop Over the points of the Graph
 			for (Int_t k=0; k<nPointsTOF; k++){
-				spectraGraph[1][i][j]->GetPoint(k,mTm0TOF,yieldTOF);
-				mTm0TOFErr = spectraGraph[1][i][j]->GetErrorX(k);
-				yieldTOFErr = spectraGraph[1][i][j]->GetErrorY(k);
-
-				//Get the TPC Efficiency Correction
-//				effTPC = 0.6*effFunc[j]->Eval(mTm0TOF);
+				spectraGraph[1][0][j]->GetPoint(k,ptTOF,yieldTOF);
+				ptTOFErr = spectraGraph[1][0][j]->GetErrorX(k);
+				yieldTOFErr = spectraGraph[1][0][j]->GetErrorY(k);
 
 				//Set the TOF Efficiency
-				//effTOF = effTPC+.6;
+				ptbin = hTOFeff->FindBin(ptTOF);
+				effTOF = hTOFeff->GetBinContent(ptbin);
 
 				//Set the New Value of the TOF spectra
-				spectraGraph[1][i][j]->SetPoint(k,mTm0TOF,yieldTOF/effTPC);
-				spectraGraph[1][i][j]->SetPointError(k,mTm0TOFErr,yieldTOFErr/effTPC);  
+				spectraGraph[1][0][j]->SetPoint(k,ptTOF,yieldTOF/effTOF);
+				spectraGraph[1][0][j]->SetPointError(k,ptTOFErr,yieldTOFErr/effTOF);  
 			}
 
 		}
-	}
-*/
+//	}
+
 
 	//Now the Offset Efficiency between the TPC curve and the TOF Curve 
 	//needs to be computed and the TOF curve scaled up
+	/* DELETED */
 
-	//Loop Over the Centrality Bins
-	//  for (Int_t i=0; i<9; i++){
-
-	/*   Double_t tpc_tof_Offset[5]; //One for each overlap bin - to be averaged later */
-
-
-	//Loop Over the Particles
-	//   for (Int_t j=0; j<6; j++){
-
-	/*     Double_t offsetEff=0; */
-	/*     Int_t nOverlapBins = 5; */
-	/*     Double_t yieldTPC, yieldTOF, mTm0TOF, mTm0TPC; */
-	/*     Double_t yieldTPCErr, yieldTOFErr, mTm0TOFErr, mTm0TPCErr; */
-	/*     for (Int_t k=0; k<nOverlapBins; k++){ */
-	/*   	spectraGraph[0][i][j]->GetPoint(k+11,mTm0TPC,yieldTPC); */
-	/*   	spectraGraph[1][i][j]->GetPoint(k,mTm0TOF,yieldTOF); */
-
-	/* 	//Initialize Offset Efficiency */
-	/* 	tpc_tof_Offset[k] = 0.01; */
-
-	/* 	//Find the efficiency by looping over a value until TOF matches TPC */
-	/* 	do { */
-
-	/* 	  //Scale TOF yield by Offset Efficiency */
-	/* 	  //yieldTOF = yieldTOF*tpc_tof_Offset[k]; */
-
-	/* 	  //Increment Offset Efficiency */
-	/* 	  tpc_tof_Offset[k] += .05; */
-
-	/* 	}while (yieldTOF*tpc_tof_Offset[k] < yieldTPC); */
-
-	/* 	//Add the Found Offset Efficiency to the average */
-	/* 	offsetEff += tpc_tof_Offset[k]; */
-
-	/*     } */
-
-	/*     //Find the Average Offset */
-	/*     offsetEff = offsetEff/(nOverlapBins+0.0); */
-	/*     cout <<offset <<endl; */
-
-	/*     //Print the Offset Efficiencies */
-	/*     for (Int_t k=0; k<nOverlapBins; k++){ */
-
-	/*     } */
-
-	/* offsetEff = +.6; */
-
+	
 	/* //Get the Number of Points in the TOF Graph */
 	/* Int_t nPointsTOF = spectraGraph[1][i][j]->GetN(); */
 
@@ -508,20 +467,20 @@ void efficiencyCorrection(){
 void writeTextFiles(){
 
 	//Directory for Saving Text Files
-	TString headDir = "TextFiles/";
+//	TString headDir = "TextFiles/";
 
 	//Variables used in loop
 	TString OUTPUTFILE;
-	Double_t mTm0, yield, yieldErr;
+	Double_t pt, yield, yieldErr;
 	Int_t nPointsTOF,nPointsTPC;
 
 
-	for (Int_t j=0; j<9; j++){
+//	for (Int_t j=0; j<9; j++){
 		for(Int_t k=0; k<6; k++){
 
 			//Set Output File Name
 //			OUTPUTFILE = headDir+collision+energy+particle[k]+CentBin+nCentBin[j]+extension;
-			OUTPUTFILE = headDir+collision+energy+particle[k]+extension;
+			OUTPUTFILE = fitDir+collision+energy+particle[k]+extension;
 
 			//Open the output file
 			ofstream outfile (OUTPUTFILE);
@@ -532,18 +491,22 @@ void writeTextFiles(){
 
 			cout <<"Writing Text File: " <<OUTPUTFILE <<endl;
 
+			outfile <<setw(11) << "pt"
+					<<setw(14) << "yield"
+					<<setw(14) << "yieldErr" <<"\n";
+
 			//Get the number of points in the graph
-			nPointsTPC = spectraGraph[0][j][k]->GetN();
-			nPointsTOF = spectraGraph[1][j][k]->GetN();
+			nPointsTPC = spectraGraph[0][0][k]->GetN();
+			nPointsTOF = spectraGraph[1][0][k]->GetN();
 
 			//Loop Over the Points in the TPC Graph
 			for (Int_t l=0; l<nPointsTPC; l++){
 
 				//Get the Values from the Graphs
-				spectraGraph[0][j][k]->GetPoint(l,mTm0,yield);
-				yieldErr = spectraGraph[0][j][k]->GetErrorY(l);
+				spectraGraph[0][0][k]->GetPoint(l,pt,yield);
+				yieldErr = spectraGraph[0][0][k]->GetErrorY(l);
 
-				outfile <<setw(11) <<setprecision(6) <<mTm0
+				outfile <<setw(11) <<setprecision(6) <<pt
 					<<setw(14) <<setprecision(6) <<yield
 					<<setw(14) <<setprecision(6) <<yieldErr <<"\n";
 			}
@@ -551,10 +514,10 @@ void writeTextFiles(){
 			for (Int_t l=0; l<nPointsTOF; l++){
 
 				//Get the Values from the Graphs
-				spectraGraph[1][j][k]->GetPoint(l,mTm0,yield);
-				yieldErr = spectraGraph[1][j][k]->GetErrorY(l);
+				spectraGraph[1][0][k]->GetPoint(l,pt,yield);
+				yieldErr = spectraGraph[1][0][k]->GetErrorY(l);
 
-				outfile <<setw(11) <<setprecision(6) <<mTm0
+				outfile <<setw(11) <<setprecision(6) <<pt
 					<<setw(14) <<setprecision(6) <<yield
 					<<setw(14) <<setprecision(6) <<yieldErr <<"\n";
 			}
@@ -563,7 +526,7 @@ void writeTextFiles(){
 			outfile.close();
 
 		}
-	}
+//	}
 
 }//End Write Text Files
 
