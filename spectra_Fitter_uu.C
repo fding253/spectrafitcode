@@ -250,11 +250,48 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 
 				//Finally, set the Limits on the parameter based on what peak was chosen
 				fitFunction->SetParLimits(1,peakLocation[nPeak]-.2,peakLocation[nPeak]+.2);
-				fitFunction->SetParLimits(2,0,0.1);
-
+				fitFunction->SetParLimits(2,0.002,0.1);
+				if( i<2 || ((i==2||i==3) && j>=10) || ((i==4||i==5)&&j>=15) ){
+					fitFunction->SetParLimits(2,0.002,0.02);
+				}
 
 				//Set the Fit Range
 				fitFunction->SetRange(peakLocation[nPeak]-.1,peakLocation[nPeak]+.1);
+				
+				//The Kaons sometimes need to be fit with a double gaussian to prevent them
+				//merging into the pion peak
+				if ((i == 2 || i == 3) && j >= 12){
+
+					//Change the Fit Function to a double Gaussian
+					fitFunction = doubleGaussian;
+
+					//Set the Parameter Names
+					fitFunction->SetParNames(particle[i-2]+" Amp.",particle[i-2]+" Mean",particle[i-2]+" Width",
+							particle[i]+" Amp",particle[i]+" Mean",particle[i]+" Width");
+
+					fitFunction->SetParameter(1,peakLocation[0]);
+					fitFunction->SetParameter(2,peakAmplitude[0]);
+
+					//Set the Parameter Limits of the Pion Peak
+					fitFunction->SetParLimits(1,peakLocation[0]-0.01,peakLocation[0]+0.01);
+					fitFunction->SetParLimits(2,0.006,0.011);
+
+					//Set the Parameters of the Kaon Peak
+					fitFunction->SetParameter(3,prevAmp);
+					fitFunction->SetParameter(4,prevMean);
+					fitFunction->FixParameter(5,prevWidth);
+
+					//Set the Parameter Limits of the Kaon Peak
+					fitFunction->SetParLimits(3,prevAmp-100,prevAmp+10);
+					fitFunction->SetParLimits(4,prevMean-.1,prevMean+.1);
+					//fitFunction->SetParLimits(5,prevWidth-.01,prevWidth+.01);
+
+					//Set the Range of the Fit
+					fitFunction->SetRange(fitFunction->GetParameter(1)-.05,fitFunction->GetParameter(4)+.04);
+
+				}
+
+
 
 
 			}
@@ -316,7 +353,7 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 
 					//Finally, set the Limits on the parameter based on what peak was chosen
 					fitFunction->SetParLimits(1,peakLocation[nPeak]-.2,peakLocation[nPeak]+.2);
-					fitFunction->SetParLimits(2,0,.1);
+					fitFunction->SetParLimits(2,0,.16);
 
 					cout << "Fitting peak found at: " << peakLocation[nPeak] << endl;
 				}
@@ -325,13 +362,13 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 				else if(nFoundPeaks < 3 && fitStatus==0){ //if there was a successful previous fit
 					fitFunction->SetParameters(prevAmp,prevMean,prevWidth);
 					fitFunction->SetParLimits(1,prevMean-.2,prevMean+.2);
-					fitFunction->SetParLimits(2,0,.1);
+					fitFunction->SetParLimits(2,0,.16);
 				cout << "Using previous peak: Fitting peak found at: " << peakLocation[nPeak] << endl;
 				}
 				else if(nFoundPeaks < 3 && fitStatus!=0){ //if no previous fit, use Bichsel
 					fitFunction->SetParameters(10e5,dedxExpected[i][j],0.1*dedxExpected[i][j]);
 					fitFunction->SetParLimits(1,0.8*dedxExpected[i][j],1.1*dedxExpected[i][j]);
-					fitFunction->SetParLimits(2,0.05,.15);
+					fitFunction->SetParLimits(2,0.05,.16);
 				cout << "Using Bichsel expected: " << dedxExpected[i][j] << "Fitting peak found at: " << peakLocation[nPeak] << endl;
 				}
 
@@ -426,13 +463,20 @@ void spectra_CentBin(Int_t CENTBIN,Int_t TPC_TOF){
 				prevMean = fitFunction->GetParameter(4);
 				prevWidth = fitFunction->GetParameter(5);
 			}
+			if (TPC_TOF == 1 && (i == 2|| i == 3) && j >= 12){
+				prevAmp = fitFunction->GetParameter(3);
+				prevMean = fitFunction->GetParameter(4);
+				prevWidth = fitFunction->GetParameter(5);
+			}
 
 			// **added**
 			//Draw the fit peak
-			if (TPC_TOF == 0 && (i == 2|| i == 3) && j >= 10){
-				drawPeak->SetParameter(0,fitFunction->GetParameter(3));
-				drawPeak->SetParameter(1,fitFunction->GetParameter(4));
-				drawPeak->SetParameter(2,fitFunction->GetParameter(5));
+			if ( (i == 2|| i == 3)) {
+				if ( (TPC_TOF==0 && j >= 10) || (TPC_TOF==1 && j>=12)) {
+					drawPeak->SetParameter(0,fitFunction->GetParameter(3));
+					drawPeak->SetParameter(1,fitFunction->GetParameter(4));
+					drawPeak->SetParameter(2,fitFunction->GetParameter(5));
+				}
 			}else {
 				drawPeak->SetParameter(0,fitFunction->GetParameter(0));
 				drawPeak->SetParameter(1,fitFunction->GetParameter(1));
